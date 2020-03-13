@@ -2,19 +2,13 @@ package com.diego_cor
 
 import android.content.Context
 import android.os.AsyncTask
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
-import android.widget.ArrayAdapter
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.ListView
+import androidx.appcompat.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.*
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.lang.Exception
-import java.lang.StringBuilder
-import java.net.HttpURLConnection
-import java.net.MalformedURLException
 import java.net.URL
 import kotlin.properties.Delegates
 
@@ -37,30 +31,94 @@ class FeedEntry {
 
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
+    private var downloadData: DownloadData? = null
 
-    private val downloadData by lazy { DownloadData(this, xmlListView) }
+    private var feedUrl: String =
+        "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
+    private var feedLimit = 10
+    private var feedCachedUrl = "INVALIDATED"
+    private val STATE_URL = "feedUrl"
+    private val STATE_LIMIT = "feedLimit"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         Log.d(TAG, "oncreate called")
 
+        if (savedInstanceState != null) {
+            feedUrl = savedInstanceState.getString(STATE_URL)
+            feedLimit = savedInstanceState.getInt(STATE_LIMIT)
+        }
+
         //val downloadData = DownloadData(this, xmlListView)
-        downloadData.execute("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=10/xml")
-        Log.d(TAG, "oncreate: done")
+        downloadUrl(feedUrl.format(feedLimit))
+        Log.d(TAG, "downloadUrl: done")
+    }
+
+    private fun downloadUrl(feedUrl: String) {
+        if (feedUrl != feedCachedUrl) {
+            Log.d(TAG, "downloadUrl: starting asynctask")
+            downloadData = DownloadData(this, xmlListView)
+            downloadData?.execute(feedUrl)
+            feedCachedUrl = feedUrl
+            Log.d(TAG, "downloadUrl: done")
+        } else {
+            Log.d(TAG, "downloadurl - url not changed")
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.feeds_menu, menu)
+
+        if (feedLimit == 10) {
+            menu?.findItem(R.id.mnu10)?.isChecked = true
+        } else {
+            menu?.findItem(R.id.mnu25)?.isChecked = true
+        }
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+
+        when (item?.itemId) {
+            R.id.mnuFree -> feedUrl =
+                "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
+            R.id.mnuPaid -> feedUrl =
+                "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/toppaidapplications/limit=%d/xml"
+            R.id.mnuSongs -> feedUrl =
+                "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topsongs/limit=%d/xml"
+            R.id.mnu10, R.id.mnu25 -> {
+                if (!item.isChecked) {
+                    item.isChecked = true
+                    feedLimit = 35 - feedLimit
+                }
+            }
+            R.id.mnuRefresh -> feedCachedUrl = "INVALIDATED"
+            else -> return super.onOptionsItemSelected(item)
+        }
+        downloadUrl(feedUrl.format(feedLimit))
+        return true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_URL, feedUrl)
+        outState.putInt(STATE_LIMIT, feedLimit)
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
-        downloadData.cancel(true)
+        downloadData?.cancel(true)
     }
 
+
     companion object {
-        private class DownloadData(context: Context, listView: ListView) : AsyncTask<String, Void, String>() {
+        private class DownloadData(context: Context, listView: ListView) :
+            AsyncTask<String, Void, String>() {
             private val TAG = "DownloadData"
 
-            var propContext : Context by Delegates.notNull()
+            var propContext: Context by Delegates.notNull()
             var propListView: ListView by Delegates.notNull()
 
             init {
@@ -79,13 +137,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPostExecute(result: String) {
                 super.onPostExecute(result)
-//                Log.d(TAG, "onpostexecute: parameter is $result")
                 val parseAplications = ParseApplications()
                 parseAplications.parse(result)
 
-//                val arrayAdapter = ArrayAdapter<FeedEntry>(propContext, R.layout.list_item, parseAplications.applications)
-//                propListView.adapter = arrayAdapter
-                val feedAdapter = FeedAdapter(propContext, R.layout.list_record, parseAplications.applications)
+                val feedAdapter =
+                    FeedAdapter(propContext, R.layout.list_record, parseAplications.applications)
                 propListView.adapter = feedAdapter
             }
 

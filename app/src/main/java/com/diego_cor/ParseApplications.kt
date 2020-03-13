@@ -3,7 +3,6 @@ package com.diego_cor
 import android.util.Log
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
-import java.lang.Exception
 
 class ParseApplications {
     private val TAG = "ParseApplications"
